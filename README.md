@@ -14,7 +14,7 @@
 
 ## 🎯 Giới Thiệu Chung
 
-Đây là một hệ thống **phát hiện cạnh (Edge Detection) sử dụng Sobel Operator** được thiết kế cho FPGA. Hệ thống nhận vào dữ liệu ảnh RGB565, chuyển đổi sang grayscale, sau đó phát hiện các cạnh trong ảnh.
+Đây là một hệ thống **phát hiện cạnh (Edge Detection) sử dụng Sobel Operator** được thiết kế cho FPGA. Hệ thống nhận vào dữ liệu ảnh RGB565, chuyển đổi sang Grayscale, và phát hiện cạnh.
 
 **Các đặc điểm chính:**
 - 📸 Hỗ trợ ảnh RGB565 16-bit
@@ -325,12 +325,15 @@ Pixel4 │     │     │     │     │ ST1 │ ST2 │ ST3 │ ST4 │
 │      Red (5 bits)   │   Green (6 bits)  │ Blue (5 bits) │
 └──────────────────────────────────────┘
 
-Ví dụ:
-- Đỏ thuần:      1111100000000000 = 0xF800
-- Xanh thuần:    0000011111100000 = 0x07E0
-- Xanh dương:    0000000000011111 = 0x001F
-- Trắng:         1111111111111111 = 0xFFFF
-- Đen:           0000000000000000 = 0x0000
+Ví dụ (Format: [RRRRRGGGGGGBBBBB]):
+- Đỏ thuần:      11111 000000 00000 = 0xF800
+- Xanh lá cây:   00000 111111 00000 = 0x07E0
+- Xanh dương:    00000 000000 11111 = 0x001F
+- Trắng:         11111 111111 11111 = 0xFFFF
+- Đen:           00000 000000 00000 = 0x0000
+- Hồng:          11111 000000 11111 = 0xF81F
+- Cyan:          00000 111111 11111 = 0x07FF
+- Vàng:          11111 111111 00000 = 0xFFE0
 ```
 
 ### **RGB to Gray Conversion**
@@ -354,52 +357,42 @@ Gray565 = {Gray8[7:3], Gray8[7:2], Gray8[7:3]}
 ### **Timing Input/Output - Waveform Diagram**
 
 ```
-Time (ns)    0     80    160   240   320   400   480   560   640   720   800
-             │     │     │     │     │     │     │     │     │     │     │
-clk          │  ╭─────╮ ╭─────╮ ╭─────╮ ╭─────╮ ╭─────╮ ╭─────╮ ╭─────╮ ╭─────╮
-             ╰──┴─────┴─┴─────┴─┴─────┴─┴─────┴─┴─────┴─┴─────┴─┴─────┴─┴─────┴──
-             T0    T1    T2    T3    T4    T5    T6    T7    T8
+Time (ns)    0    40    80   120   160   200   240   280   320   360   400
+             │    │     │    │     │    │     │    │     │    │     │
+clk          ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐
+             └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘
+             T0   T1   T2   T3   T4   T5   T6   T7   T8   T9   T10
 
-pixel_       │
-valid_in     │  ╭──────╮ ╭──────╮ ╭──────╮ ╭──────╮ ╰──────────────────────
-             ╰──┴──────┴─┴──────┴─┴──────┴─┴──────┴────────────────────────
-                P0/1  │ P1/1  │ P2/1  │ P3/1  │ 0
-                      
-rgb565_in    │  
-(data)       │  ╭──────────╮ ╭──────────╮ ╭──────────╮ ╭──────────╮ ╰──────
-             ╰──┴──────────┴─┴──────────┴─┴──────────┴─┴──────────┴────────
-                 P0     P1     P2     P3   (--/--/--/--)
+pixel_       
+valid_in     ┌──────────┐  
+             └──────────┘  
+             (P0-P3 valid)  
 
-gray_valid_  │     
-out          │     ╭──────╮ ╭──────╮ ╭──────╮ ╭──────╮ ╰──────────────
-             ╰─────┴──────┴─┴──────┴─┴──────┴─┴──────┴─────────────
-             (--)  1     1     1     1   (0)
-                  [1 clk delay]
+rgb565_in    ├──P0──┼──P1──┼──P2──┼──P3──┼─────────────┤
+(data)       
+             
+gray_valid_  
+out                ┌──────────┐  
+                   └──────────┘  
+                   (1 clk delay)
+             
+gray565_out       ├──G0──┼──G1──┼──G2──┼──G3──┼───────┤
+(data)            (Trễ 1 clock từ input)
 
-gray565_out  │     
-(data)       │     ╭──────────╮ ╭──────────╮ ╭──────────╮ ╭──────────╮ ╰
-             ╰─────┴──────────┴─┴──────────┴─┴──────────┴─┴──────────┴────
-                  G0    G1     G2    G3   (--)
-                  [1 clk delay from input]
+edge_valid_  
+out                               ┌──────────┐  
+                                  └──────────┘  
+                                  (5 clk delay)
 
-edge_valid_  │
-out          │                                ╭──────╮ ╭──────╮ ╭──────╮
-             ╰────────────────────────────────┴──────┴─┴──────┴─┴──────┴─
-             (--/--/--/--/--) 1     1     1
-                           [5 clk delay]
-
-edge565_out  │
-(data)       │                                ╭──────────╮ ╭──────────╮ ╭──
-             ╰────────────────────────────────┴──────────┴─┴──────────┴─┴──
-             (--/--/--/--/--) E0    E1     E2
-                           [5 clk delay from input]
+edge565_out                       ├──E0──┼──E1──┼──E2──┼───┤
+(data)                            (Trễ 5 clocks từ input)
 ```
 
 **Giải Thích Chi Tiết:**
 
 | Tín Hiệu | Trạng Thái | Mô Tả |
 |----------|-----------|-------|
-| **clk** | Sóng vuông 50MHz | Period = 80ns, Frequency = 12.5MHz |
+| **clk** | Sóng vuông 50 MHz | Period = 40ns, Frequency = 25MHz |
 | **pixel_valid_in** | 1 → 0 | Mức cao (1) cho 4 clock, rồi mức thấp (0) |
 | **rgb565_in** | P0→P1→P2→P3→-- | Dữ liệu thay đổi tại cạnh lên của clock |
 | **gray_valid_out** | Trễ 1 CLK | Output xuất hiện sau input 1 chu kỳ |
@@ -416,7 +409,6 @@ edge565_out  │
 - **T5:** Edge output xuất E0 (P0 đã xử lý xong 5 stages)
 - **T6:** Edge output xuất E1
 - **T7:** Edge output xuất E2
-```
 
 ---
 
@@ -787,4 +779,3 @@ sobel_top #(.THRESHOLD(200)) u_sobel (...);
 **Tác giả:** Image Processing on FPGA  
 **Ngày:** 2024-2025  
 **Phiên bản:** 1.0
-
