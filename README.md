@@ -357,47 +357,48 @@ Gray565 = {Gray8[7:3], Gray8[7:2], Gray8[7:3]}
 ### **Timing Input/Output - Waveform Diagram**
 
 ```
-Time (ns)    0    40    80   120   160   200   240   280   320   360   400
-             │    │     │    │     │    │     │    │     │    │     │
-clk          ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐
-             └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘
-             T0   T1   T2   T3   T4   T5   T6   T7   T8   T9   T10
+Thời gian (ns)    0     80    160   240   320   400   480   560   640   720   800
+                  │     │     │     │     │     │     │     │     │     │     │
+clk               │  ┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐
+                  └──┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─
+                  T0  T1 T2  T3 T4  T5 T6  T7 T8  T9 T10 T11 T12
 
-pixel_       
-valid_in     ┌──────────┐  
-             └──────────┘  
-             (P0-P3 valid)  
+pixel_valid_in    │  ┐
+                  └──┴─────────────────────┐
+                        (4 clks: T0-T3)    └──────────────────────────
+                  [P0] [P1] [P2] [P3]
 
-rgb565_in    ├──P0──┼──P1──┼──P2──┼──P3──┼─────────────┤
-(data)       
-             
-gray_valid_  
-out                ┌──────────┐  
-                   └──────────┘  
-                   (1 clk delay)
-             
-gray565_out       ├──G0──┼──G1──┼──G2──┼──G3──┼───────┤
-(data)            (Trễ 1 clock từ input)
+rgb565_in         ├──────┬──────┬──────┬──────┬───────────────────────┤
+                        │ P0  │ P1  │ P2  │ P3  │ (undefined)
+                        └──────┴──────┴──────┴──────┴───────────────────
 
-edge_valid_  
-out                               ┌──────────┐  
-                                  └──────────┘  
-                                  (5 clk delay)
+gray_valid_out              ┐
+                      ──────┴────────────────────────────────────
+                            (Trễ 1 CLK từ T0)
 
-edge565_out                       ├──E0──┼──E1──┼──E2──┼───┤
-(data)                            (Trễ 5 clocks từ input)
+gray565_out         ├──────┬──────┬──────┬──────┬─────────────────
+                            │ G0  │ G1  │ G2  │ G3  │ (undefined)
+                            └──────┴���─────┴──────┴──────┴──────────
+
+edge_valid_out                                ┐
+                                        ──────┴────────────────
+                                              (Trễ 5 CLK từ T0)
+
+edge565_out                         ├──────┬──────┬──────┬─────────
+                                            │ E0  │ E1  │ E2  │ 
+                                            └──────┴──────┴──────┴──
 ```
 
 **Giải Thích Chi Tiết:**
 
 | Tín Hiệu | Trạng Thái | Mô Tả |
 |----------|-----------|-------|
-| **clk** | Sóng vuông 50 MHz | Period = 40ns, Frequency = 25MHz |
-| **pixel_valid_in** | 1 → 0 | Mức cao (1) cho 4 clock, rồi mức thấp (0) |
+| **clk** | Sóng vuông 50MHz | Period = 80ns, Frequency = 12.5MHz |
+| **pixel_valid_in** | 1 → 0 | Mức cao (1) cho 4 clock (T0-T3), rồi mức thấp (0) |
 | **rgb565_in** | P0→P1→P2→P3→-- | Dữ liệu thay đổi tại cạnh lên của clock |
-| **gray_valid_out** | Trễ 1 CLK | Output xuất hiện sau input 1 chu kỳ |
+| **gray_valid_out** | Trễ 1 CLK | Output xuất hiện sau input 1 chu kỳ (từ T1) |
 | **gray565_out** | G0→G1→G2→G3 | Gray data trễ 1 clock so với input |
-| **edge_valid_out** | Trễ 5 CLK | Xuất hiện sau 5 chu kỳ xử lý |
+| **edge_valid_out** | Trễ 5 CLK | Xuất hiện sau 5 chu kỳ xử lý (từ T5) |
 | **edge565_out** | E0→E1→E2 | Edge data trễ 5 clocks |
 
 **Timeline (Clock Cycle):**
