@@ -1,16 +1,16 @@
-# Bao Cao Module Sobel Edge Detection
+# Báo Cáo Module Sobel Edge Detection
 
-## 1. Gioi thieu
+## 1. Giới Thiệu
 
-Module `sobel_edge.v` duoc su dung de phat hien bien tren anh xam 8-bit. Dau vao cua module la tung pixel muc xam `gray8_in`, di kem tin hieu hop le `gray_valid_in`. Du lieu anh duoc dua vao theo thu tu raster, nghia la quet tu trai sang phai tren tung dong, sau do chuyen xuong dong tiep theo.
+Module `sobel_edge.v` được sử dụng để phát hiện biên trên ảnh xám 8-bit. Đầu vào của module là từng pixel mức xám `gray8_in`, đi kèm tín hiệu hợp lệ `gray_valid_in`. Dữ liệu ảnh được đưa vào theo thứ tự pixel raster.
 
-Trong he thong nay, thuat toan Sobel duoc trien khai bang phan cung theo dang pipeline. Moi chu ky clock, module co the nhan mot pixel moi, trong khi cac pixel truoc do dang duoc xu ly o cac tang pipeline tiep theo. Cach thiet ke nay phu hop voi FPGA vi co thong luong cao va tan dung duoc tinh song song cua phan cung.
+Trong hệ thống này, thuật toán Sobel được triển khai bằng phần cứng theo dạng pipeline. Mỗi chu kỳ clock, module có thể nhận một pixel mới, trong khi các pixel trước đó đang được xử lý ở các tầng pipeline.
 
-## 2. Co so ly thuyet thuat toan Sobel
+## 2. Cơ Sở Lý Thuyết Thuật Toán Sobel
 
-Thuat toan Sobel la mot phuong phap phat hien bien dua tren su thay doi cuong do sang cua cac pixel lan can. Trong anh so, bien thuong xuat hien tai nhung vi tri ma muc xam thay doi dot ngot. Vi vay, Sobel su dung dao ham roi rac theo hai phuong ngang va doc de uoc luong do lon bien tai moi pixel.
+Thuật toán Sobel là một phương pháp phát hiện biên dựa trên sự thay đổi cường độ sáng của các pixel lân cận. Trong ảnh số, biên thường xuất hiện tại những vị trí mà mức xám thay đổi đột ngột. Vì vậy, bằng cách tính toán đạo hàm của mức xám, ta có thể phát hiện được biên.
 
-Xet mot cua so anh kich thuoc 3x3 quanh pixel trung tam:
+Xét một cửa sổ ảnh kích thước 3x3 quanh pixel trung tâm:
 
 ```text
 P00  P01  P02
@@ -18,7 +18,7 @@ P10  P11  P12
 P20  P21  P22
 ```
 
-Trong do `P11` la pixel trung tam can tinh bien. Thuat toan Sobel su dung hai mat na chap:
+Trong đó `P11` là pixel trung tâm cần tính biên. Thuật toán Sobel sử dụng hai mặt nạ chập:
 
 ```text
 Gx kernel:
@@ -34,66 +34,66 @@ Gy kernel:
 -1  -2  -1
 ```
 
-Gradient theo phuong X duoc tinh nhu sau:
+Gradient theo phương X được tính như sau:
 
 ```text
 Gx = -P00 + P02 - 2P10 + 2P12 - P20 + P22
 ```
 
-Co the viet lai thanh:
+Có thể viết lại thành:
 
 ```text
 Gx = (P02 - P00) + 2(P12 - P10) + (P22 - P20)
 ```
 
-Gradient theo phuong Y duoc tinh nhu sau:
+Gradient theo phương Y được tính như sau:
 
 ```text
 Gy = P00 + 2P01 + P02 - P20 - 2P21 - P22
 ```
 
-Gia tri `Gx` bieu dien su thay doi cuong do sang theo phuong ngang, giup phat hien bien doc. Gia tri `Gy` bieu dien su thay doi cuong do sang theo phuong doc, giup phat hien bien ngang.
+Giá trị `Gx` biểu diễn sự thay đổi cường độ sáng theo phương ngang, giúp phát hiện biên đứng. Giá trị `Gy` biểu diễn sự thay đổi cường độ sáng theo phương đứng, giúp phát hiện biên ngang.
 
-Ve mat ly thuyet, do lon gradient co the tinh bang:
+Về mặt lý thuyết, độ lớn gradient có thể tính bằng:
 
 ```text
 G = sqrt(Gx^2 + Gy^2)
 ```
 
-Tuy nhien, cong thuc nay can phep nhan va phep can bac hai, gay ton tai nguyen khi trien khai tren FPGA. Do do, trong thiet ke phan cung, do lon bien duoc xap xi bang:
+Tuy nhiên, công thức này cần phép nhân và phép căn bậc hai, gây tốn tài nguyên khi triển khai trên FPGA. Do đó, trong thiết kế phần cứng, độ lớn biên được xấp xỉ bằng:
 
 ```text
 G ≈ |Gx| + |Gy|
 ```
 
-Neu `G` lon hon nguong `THRESHOLD`, pixel duoc xem la pixel bien. Neu `G` nho hon hoac bang nguong, pixel duoc xem la nen.
+Nếu `G` lớn hơn ngưỡng `THRESHOLD`, pixel được xem là pixel biên. Nếu `G` nhỏ hơn hoặc bằng ngưỡng, pixel được xem là nền.
 
 ```text
-G > THRESHOLD   -> pixel bien
-G <= THRESHOLD  -> pixel khong phai bien
+G > THRESHOLD   -> pixel biên
+G <= THRESHOLD  -> pixel không phải biên
 ```
 
-Trong module nay, pixel bien duoc xuat ra gia tri trang `16'hFFFF`, con pixel khong phai bien duoc xuat ra gia tri den `16'h0000`.
+Trong module này, pixel biên được xuất ra giá trị trắng `16'hFFFF`, còn pixel không phải biên được xuất ra giá trị đen `16'h0000`.
 
-## 3. Kien truc phan cung cua module sobel_edge
+## 3. Kiến Trúc Phần Cứng Của Module sobel_edge
 
-Module `sobel_edge.v` gom cac khoi chinh sau:
+Module `sobel_edge.v` gồm các khối chính sau:
 
-- Bo dem toa do `x`, `y`
+- Bộ đếm tọa độ `x`, `y`
 - Hai line buffer: `line_buffer_1`, `line_buffer_2`
-- Tang tao cot pixel doc
-- He thanh ghi dich tao cua so 3x3
-- Khoi tinh `Gx`, `Gy`
-- Khoi lay tri tuyet doi
-- Khoi tinh do lon bien
-- Khoi so sanh nguong va tao output
-- Pipeline cho tin hieu `valid`, `x`, `y`
+- Tầng tạo cột pixel đọc
+- Hệ thanh ghi dịch tạo cửa sổ 3x3
+- Khối tính `Gx`, `Gy`
+- Khối lấy trị tuyệt đối
+- Khối tính độ lớn biên
+- Khối so sánh ngưỡng và tạo output
+- Pipeline cho tín hiệu `valid`, `x`, `y`
 
-Du lieu anh di vao tung pixel mot. Do Sobel can cua so 3x3, module khong the chi dung pixel hien tai ma phai luu lai cac pixel cua hai dong truoc do. Vi vay, hai line buffer duoc su dung de luu tru lich su hai dong anh gan nhat.
+Dữ liệu ảnh đi vào từng pixel một. Do Sobel cần cửa sổ 3x3, module không thể chỉ dùng pixel hiện tại mà phải lưu lại các pixel của hai dòng trước đó. Vì vậy, hai line buffer được sử dụng để lưu trữ lịch sử hai dòng ảnh gần nhất.
 
-## 4. Stage 1: Doc line buffer va tao cot pixel
+## 4. Stage 1: Đọc Line Buffer Và Tạo Cột Pixel
 
-O Stage 1, module lay ba pixel cung mot cot `x` nhung nam tren ba dong khac nhau:
+Ở Stage 1, module lấy ba pixel cùng một cột `x` nhưng nằm trên ba dòng khác nhau:
 
 ```verilog
 top_s1 <= line_buffer_2[x];
@@ -101,15 +101,15 @@ mid_s1 <= line_buffer_1[x];
 bot_s1 <= gray8_in;
 ```
 
-Y nghia cua ba tin hieu nay la:
+Ý nghĩa của ba tín hiệu này là:
 
 ```text
-top_s1 = pixel o dong y-2, cot x
-mid_s1 = pixel o dong y-1, cot x
-bot_s1 = pixel o dong y,   cot x
+top_s1 = pixel ở dòng y-2, cột x
+mid_s1 = pixel ở dòng y-1, cột x
+bot_s1 = pixel ở dòng y,   cột x
 ```
 
-Vi du voi anh:
+Ví dụ với ảnh:
 
 ```text
 row0: 10  11  12  13
@@ -117,7 +117,7 @@ row1: 20  21  22  23
 row2: 30  31  32  33
 ```
 
-Khi dang doc pixel `row2[2] = 32`, tuc la `x = 2`, `y = 2`, line buffer co gia tri:
+Khi đang đọc pixel `row2[2] = 32`, tức là `x = 2`, `y = 2`, line buffer có giá trị:
 
 ```text
 line_buffer_2[2] = 12
@@ -125,7 +125,7 @@ line_buffer_1[2] = 22
 gray8_in         = 32
 ```
 
-Do do Stage 1 lay duoc cot doc:
+Do đó Stage 1 lấy được cột đọc:
 
 ```text
 12
@@ -133,18 +133,18 @@ Do do Stage 1 lay duoc cot doc:
 32
 ```
 
-Sau khi doc du lieu, line buffer duoc cap nhat:
+Sau khi đọc dữ liệu, line buffer được cập nhật:
 
 ```verilog
 line_buffer_2[x] <= line_buffer_1[x];
 line_buffer_1[x] <= gray8_in;
 ```
 
-Viec cap nhat nay dung de chuan bi cho cac dong tiep theo. Do trong Verilog cac phep gan trong mach tuan tu su dung non-blocking assignment `<=`, gia tri cu cua line buffer duoc doc truoc, sau do line buffer moi duoc cap nhat o cuoi chu ky clock. Vi vay, viec doc va ghi cung mot dia chi line buffer trong cung mot chu ky khong lam mat du lieu.
+Việc cập nhật này dùng để chuẩn bị cho các dòng tiếp theo. Do trong Verilog các phép gán trong mạch tuần tự sử dụng non-blocking assignment `<=`, giá trị cũ của line buffer được đọc trước, sau đó line buffer được cập nhật giá trị mới.
 
-## 5. Stage 2: Tao cua so 3x3
+## 5. Stage 2: Tạo Cửa Sổ 3x3
 
-Sau khi Stage 1 tao ra mot cot gom ba pixel `top_s1`, `mid_s1`, `bot_s1`, Stage 2 su dung cac thanh ghi dich de giu lai ba cot gan nhat. Cac thanh ghi nay co ten:
+Sau khi Stage 1 tạo ra một cột gồm ba pixel `top_s1`, `mid_s1`, `bot_s1`, Stage 2 sử dụng các thanh ghi dịch để giữ lại ba cột gần nhất. Các thanh ghi này có tên:
 
 ```text
 p00 p01 p02
@@ -152,7 +152,7 @@ p10 p11 p12
 p20 p21 p22
 ```
 
-Moi khi co mot cot moi di vao, cac cot cu duoc dich sang trai va cot moi duoc dua vao ben phai. Sau do cua so 3x3 duoc chot vao cac thanh ghi:
+Mỗi khi có một cột mới đi vào, các cột cũ được dịch sang trái và cột mới được đưa vào bên phải. Sau đó cửa sổ 3x3 được chốt vào các thanh ghi:
 
 ```text
 w00_s2  w01_s2  w02_s2
@@ -160,11 +160,11 @@ w10_s2  w11_s2  w12_s2
 w20_s2  w21_s2  w22_s2
 ```
 
-Cac gia tri nay tuong ung voi `P00` den `P22` trong cong thuc Sobel.
+Các giá trị này tương ứng với `P00` đến `P22` trong công thức Sobel.
 
-Khi anh dau vao co kich thuoc 320x240, toa do `x` chay tu `0` den `319`. Sau khi `x` chay het 320 pixel, `x` ve 0 va `y` tang len 1. Cua so 3x3 hop le dau tien chi xuat hien khi da co du ba dong va ba cot, tuc la tai thoi diem dang doc den `x = 2`, `y = 2`.
+Khi ảnh đầu vào có kích thước 320x240, tọa độ `x` chạy từ `0` đến `319`. Sau khi `x` chạy hết 320 pixel, `x` về 0 và `y` tăng lên 1. Cửa sổ 3x3 hợp lệ đầu tiên chỉ xuất hiện khi đã có đủ ba dòng và ba cột dữ liệu.
 
-Tai thoi diem do, cua so dau tien la:
+Tại thời điểm đó, cửa sổ đầu tiên là:
 
 ```text
 row0[0]  row0[1]  row0[2]
@@ -172,13 +172,13 @@ row1[0]  row1[1]  row1[2]
 row2[0]  row2[1]  row2[2]
 ```
 
-Ket qua Sobel cua cua so nay khong thuoc ve pixel hien tai `row2[2]`, ma thuoc ve pixel trung tam `row1[1]`. Vi vay, dia chi output phai duoc tinh theo toa do trung tam cua cua so.
+Kết quả Sobel của cửa sổ này không thuộc về pixel hiện tại `row2[2]`, mà thuộc về pixel trung tâm `row1[1]`. Vì vậy, địa chỉ output phải được tính theo tọa độ trung tâm của cửa sổ.
 
-## 6. Stage 3: Tinh gradient Gx va Gy
+## 6. Stage 3: Tính Gradient Gx Và Gy
 
-Stage 3 thuc hien tinh hai gradient `Gx` va `Gy` dua tren cua so 3x3 da duoc tao o Stage 2.
+Stage 3 thực hiện tính hai gradient `Gx` và `Gy` dựa trên cửa sổ 3x3 đã được tạo ở Stage 2.
 
-Trong code, `Gx` duoc tinh nhu sau:
+Trong code, `Gx` được tính như sau:
 
 ```verilog
 gx_s3 <=
@@ -187,15 +187,15 @@ gx_s3 <=
     $signed({1'b0, w22_s2}) - $signed({1'b0, w20_s2});
 ```
 
-Cong thuc nay tuong ung voi:
+Công thức này tương ứng với:
 
 ```text
 Gx = (P02 - P00) + 2(P12 - P10) + (P22 - P20)
 ```
 
-Trong code, phep nhan voi 2 duoc thuc hien bang dich trai mot bit `<<< 1`. Cach nay tiet kiem tai nguyen phan cung hon so voi su dung bo nhan.
+Trong code, phép nhân với 2 được thực hiện bằng dịch trái một bit `<<< 1`. Cách này tiết kiệm tài nguyên phần cứng hơn so với sử dụng bộ nhân.
 
-Tuong tu, `Gy` duoc tinh nhu sau:
+Tương tự, `Gy` được tính như sau:
 
 ```verilog
 gy_s3 <=
@@ -207,74 +207,74 @@ gy_s3 <=
     $signed({1'b0, w22_s2});
 ```
 
-Cong thuc nay tuong ung voi:
+Công thức này tương ứng với:
 
 ```text
 Gy = P00 + 2P01 + P02 - P20 - 2P21 - P22
 ```
 
-Sau Stage 3, hai gia tri `gx_s3` va `gy_s3` bieu dien muc thay doi cuong do sang theo hai phuong X va Y.
+Sau Stage 3, hai giá trị `gx_s3` và `gy_s3` biểu diễn mức thay đổi cường độ sáng theo hai phương X và Y.
 
-## 7. Stage 4: Lay tri tuyet doi
+## 7. Stage 4: Lấy Trị Tuyệt Đối
 
-Gia tri `Gx` va `Gy` co the am hoac duong, tuy thuoc vao chieu thay doi muc xam. Tuy nhien, khi phat hien bien, ta chi quan tam do lon thay doi, khong quan tam dau am hay duong. Vi vay, Stage 4 lay tri tuyet doi:
+Giá trị `Gx` và `Gy` có thể âm hoặc dương, tùy thuộc vào chiều thay đổi mức xám. Tuy nhiên, khi phát hiện biên, ta chỉ quan tâm độ lớn thay đổi, không quan tâm dấu âm hay dương. Vì vậy, Stage 4 lấy trị tuyệt đối:
 
 ```text
 abs_gx_s4 = |Gx|
 abs_gy_s4 = |Gy|
 ```
 
-Trong phan cung, neu gradient nho hon 0 thi module lay `0 - gradient`, nguoc lai giu nguyen gia tri gradient.
+Trong phần cứng, nếu gradient nhỏ hơn 0 thì module lấy `0 - gradient`, ngược lại giữ nguyên giá trị gradient.
 
-## 8. Stage 5: Tinh do lon bien
+## 8. Stage 5: Tính Độ Lớn Biên
 
-Stage 5 tinh do lon bien xap xi bang tong hai tri tuyet doi:
+Stage 5 tính độ lớn biên xấp xỉ bằng tổng hai trị tuyệt đối:
 
 ```text
 edge_mag_s5 = abs_gx_s4 + abs_gy_s4
 ```
 
-Day la cach xap xi cua cong thuc ly thuyet:
+Đây là cách xấp xỉ của công thức lý thuyết:
 
 ```text
 G = sqrt(Gx^2 + Gy^2)
 ```
 
-Viec su dung `|Gx| + |Gy|` giup mach don gian hon, chi can cac bo cong va mach lay tri tuyet doi, khong can bo nhan binh phuong hoac mach can bac hai. Dieu nay rat phu hop voi FPGA.
+Việc sử dụng `|Gx| + |Gy|` giúp mạch đơn giản hơn, chỉ cần các bộ cộng và mạch lấy trị tuyệt đối, không cần bộ nhân bình phương hoặc mạch căn bậc hai. Điều này rất phù hợp với FPGA.
 
-## 9. Output Stage: So sanh nguong va tao pixel dau ra
+## 9. Output Stage: So Sánh Ngưỡng Và Tạo Pixel Đầu Ra
 
-O tang cuoi, module so sanh `edge_mag_s5` voi nguong `THRESHOLD`.
+Ở tầng cuối, module so sánh `edge_mag_s5` với ngưỡng `THRESHOLD`.
 
-Neu do lon bien lon hon nguong:
+Nếu độ lớn biên lớn hơn ngưỡng:
 
 ```verilog
 edge_pixel_out <= 16'hFFFF;
 ```
 
-Pixel dau ra co mau trang, bieu thi co bien.
+Pixel đầu ra có màu trắng, biểu thị có biên.
 
-Neu do lon bien nho hon hoac bang nguong:
+Nếu độ lớn biên nhỏ hơn hoặc bằng ngưỡng:
 
 ```verilog
 edge_pixel_out <= 16'h0000;
 ```
 
-Pixel dau ra co mau den, bieu thi khong co bien.
+Pixel đầu ra có màu đen, biểu thị không có biên.
 
-Dia chi pixel dau ra duoc tinh bang:
+Địa chỉ pixel đầu ra được tính bằng:
 
 ```verilog
 edge_addr_out <= pixel_addr(y_s5 - 1, x_s5 - 1);
 ```
 
-Ly do tru 1 o ca `x` va `y` la vi khi pixel hien tai nam o goc duoi ben phai cua cua so 3x3, ket qua Sobel thuc su thuoc ve pixel trung tam cua cua so, tuc la toa do `(x-1, y-1)`.
+Lý do trừ 1 ở cả `x` và `y` là vì khi pixel hiện tại nằm ở góc dưới bên phải của cửa sổ 3x3, kết quả Sobel thực sự thuộc về pixel trung tâm của cửa sổ, tức là tọa độ `(x-1, y-1)`.
 
-Doi voi cac pixel bien anh nhu `x = 0`, `x = 1`, `y = 0`, hoac `y = 1`, cua so 3x3 chua hop le day du. Vi vay, module gan pixel dau ra bang den.
+Đối với các pixel biên ảnh như `x = 0`, `x = 1`, `y = 0`, hoặc `y = 1`, cửa sổ 3x3 chưa hợp lệ đầy đủ. Vì vậy, module gán pixel đầu ra bằng đen.
 
-## 10. Pipeline valid va toa do
+## 10. Pipeline Valid Và Tọa Độ
 
-Do module duoc thiet ke theo dang pipeline, du lieu pixel di qua nhieu tang xu ly. De dam bao output dung voi du lieu dang xu ly, cac tin hieu `valid`, `x`, va `y` cung duoc delay qua tung tang pipeline:
+Do module được thiết kế theo dạng pipeline, dữ liệu pixel đi qua nhiều tầng xử lý. Để đảm bảo output đúng với dữ liệu đang xử lý, các tín hiệu `valid`, `x`, và `y` cũng được delay qua từng tầng pipeline:
 
 ```text
 valid_s1 -> valid_s2 -> valid_s3 -> valid_s4 -> valid_s5
@@ -282,11 +282,10 @@ x_s1     -> x_s2     -> x_s3     -> x_s4     -> x_s5
 y_s1     -> y_s2     -> y_s3     -> y_s4     -> y_s5
 ```
 
-Nho do, khi `edge_mag_s5` di den tang output, toa do `x_s5`, `y_s5` va tin hieu `valid_s5` cung den dung thoi diem. Dieu nay dam bao `edge_addr_out`, `edge_pixel_out`, va `edge_valid_out` khop voi nhau.
+Nhờ đó, khi `edge_mag_s5` đi đến tầng output, tọa độ `x_s5`, `y_s5` và tín hiệu `valid_s5` cũng đến đúng thời điểm. Điều này đảm bảo `edge_addr_out`, `edge_pixel_out`, và `edge_valid_out` khớp với nhau.
 
-## 11. Ket luan
+## 11. Kết Luận
 
-Module `sobel_edge.v` la mot thiet ke phat hien bien theo thuat toan Sobel duoc toi uu cho xu ly phan cung. Thiet ke su dung hai line buffer de luu hai dong anh truoc, cac thanh ghi dich de tao cua so 3x3, va pipeline de chia nho qua trinh tinh toan thanh nhieu tang. Cac phep tinh toan trong ly thuyet Sobel duoc anh xa thanh cac phep cong, tru, dich trai va so sanh nguong trong phan cung.
+Module `sobel_edge.v` là một thiết kế phát hiện biên theo thuật toán Sobel được tối ưu cho xử lý phần cứng. Thiết kế sử dụng hai line buffer để lưu hai dòng ảnh trước, các thanh ghi dịch để tạo cửa sổ 3x3, và các khối tính toán để xác định biên dựa trên gradient.
 
-Nho kien truc pipeline, module co kha nang nhan mot pixel moi moi chu ky clock, giup tang toc do xu ly va phu hop voi cac he thong xu ly anh thoi gian thuc tren FPGA.
-
+Nhờ kiến trúc pipeline, module có khả năng nhận một pixel mới mỗi chu kỳ clock, giúp tăng tốc độ xử lý và phù hợp với các hệ thống xử lý ảnh thời gian thực trên FPGA.
